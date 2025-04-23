@@ -221,3 +221,47 @@ export const sellBidProduct = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: "Internal server error", error: err });
   }
 };
+export const getSoldBids = async (req: AuthRequest, res: Response) => {
+  try {
+    const sellerId = req.user?.id;
+
+    if (!sellerId) {
+      res.status(401).json({ message: "Unauthorized access" });
+      return;
+    }
+
+    // Find sold products by this seller
+    const soldProducts = await Product.find({
+      isSoldout: true,
+      user: sellerId, // Only those sold by the logged-in seller
+    })
+      .populate("user", "name email") // Seller info
+      .populate("userTo", "name email") // Buyer info
+      .sort({ updatedAt: -1 });
+
+    if (!soldProducts || soldProducts.length === 0) {
+      res.status(404).json({ message: "No sold bids found for this seller" });
+    }
+
+    const soldBids = soldProducts.map((product) => ({
+      productId: product._id,
+      title: product.title,
+      soldPrice: product.soldPrice,
+      buyer: product.userTo,
+      seller: product.user,
+      soldDate: product.updatedAt,
+      status: "Sold",
+    }));
+
+    res.status(200).json({
+      message: "Sold bids for the seller fetched successfully",
+      soldBids,
+    });
+  } catch (error) {
+    console.error("Error fetching seller's sold bids:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};

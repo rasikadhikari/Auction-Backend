@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import mongoose, { model, Schema } from "mongoose";
 const productModel = new Schema(
   {
     user: {
@@ -20,9 +20,11 @@ const productModel = new Schema(
       default: "",
     },
     category: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
       required: true,
     },
+
     commission: {
       type: Number,
       default: 0,
@@ -42,7 +44,6 @@ const productModel = new Schema(
     userTo: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
     },
   },
   { timestamps: true }
@@ -66,7 +67,7 @@ type ProductInput = {
   isVerify?: boolean;
   isSoldout?: boolean;
   soldPrice?: number;
-  userTo: string;
+  userTo?: string;
 };
 
 export const findProduct = async () => {

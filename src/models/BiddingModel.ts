@@ -46,5 +46,7 @@ export const placeBid = async (
 
   return bid;
 };
-
+export const findBid = async (productId: string, userId: string) => {
+  return await Bidding.findOne({ product: productId, user: userId });
+};
 export default Bidding;

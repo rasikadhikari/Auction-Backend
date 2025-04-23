@@ -88,7 +88,7 @@ export const findUserById = async (id: string) => {
 };
 
 export const findUser = async () => {
-  return await User.find();
+  return await User.find().populate("name");
 };
 
 export const deleteUser = async (id: string) => {

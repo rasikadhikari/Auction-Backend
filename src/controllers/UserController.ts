@@ -149,11 +149,9 @@ export const estimatedCommission = async (req: AuthRequest, res: Response) => {
     const { role } = req.user!;
 
     if (role !== "admin") {
-      res
-        .status(403)
-        .json({
-          message: "Access denied. Only admin can view commission balance.",
-        });
+      res.status(403).json({
+        message: "Access denied. Only admin can view commission balance.",
+      });
       return;
     }
 
@@ -169,6 +167,113 @@ export const estimatedCommission = async (req: AuthRequest, res: Response) => {
     });
   } catch (err) {
     console.error("Error in fetching commission balance --", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateUserProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.user!;
+    const { name } = req.body;
+    const photo = req.file?.filename;
+
+    if (!name && !photo) {
+      res.status(400).json({ message: "Nothing to update" });
+      return;
+    }
+
+    const user = await findUserById(id);
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    // Update name and/or photo
+    if (name) user.name = name;
+    if (photo) {
+      user.photo = `/uploads/${photo}`;
+      console.log("Photo uploaded:", user.photo);
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: `${
+        user.role.charAt(0).toUpperCase() + user.role.slice(1)
+      } profile updated successfully`,
+      user,
+    });
+  } catch (err) {
+    console.error("Error updating profile:", err);
+    res.status(500).json({ message: "Internal server error" });
+    return;
+  }
+};
+
+// Controller
+export const getAdminProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.user!;
+
+    const user = await findUserById(id);
+
+    if (!user || user.role !== "admin") {
+      res.status(403).json({ message: "Access denied" });
+      return;
+    }
+
+    res.status(200).json({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      photo: user.photo, // Should be something like "/uploads/profile.jpg"
+    });
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+export const getSellerProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.user!;
+
+    const user = await findUserById(id);
+
+    if (!user || user.role !== "seller") {
+      res.status(403).json({ message: "Access denied" });
+      return;
+    }
+
+    res.status(200).json({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      photo: user.photo, // Should be something like "/uploads/profile.jpg"
+    });
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+export const getBuyerProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.user!;
+
+    const user = await findUserById(id);
+
+    if (!user || user.role !== "buyer") {
+      res.status(403).json({ message: "Access denied" });
+      return;
+    }
+
+    res.status(200).json({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      photo: user.photo, // Should be something like "/uploads/profile.jpg"
+    });
+  } catch (err) {
+    console.error("Error fetching profile:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };

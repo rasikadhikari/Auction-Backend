@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import {
+import Product, {
   createProduct,
   deleteProduct,
   findProduct,
@@ -10,6 +10,7 @@ import {
 import { AuthRequest } from "../Authenticator/auth";
 import fs from "fs";
 import path from "path";
+import Category from "../models/CategoryModel";
 
 export const getAllProduct = async (req: Request, res: Response) => {
   try {
@@ -41,12 +42,12 @@ export const getAllProductById = async (req: Request, res: Response) => {
     res.status(500).json({ error, message: "internal server error" });
   }
 };
-export const getCreateProduct = async (req: Request, res: Response) => {
+export const getCreateProduct = async (req: AuthRequest, res: Response) => {
   try {
     const file = req.file;
-    const imagePath = file ? file.path : "";
+    const userId = req.user?.id;
+    const imagePath = file ? `/uploads/${file.filename}` : "";
     const {
-      user,
       title,
       description,
       category,
@@ -60,35 +61,41 @@ export const getCreateProduct = async (req: Request, res: Response) => {
       isVerify,
       soldPrice,
       isSoldout,
-      userTo,
     } = req.body;
-    const product = await createProduct({
-      user,
-      title,
-      description,
-      image: imagePath,
-      category,
-      commission,
-      price,
-      height,
-      lengthPic,
-      width,
-      mediumused,
-      weight,
-      isVerify,
-      isSoldout,
-      soldPrice,
-      userTo,
-    });
-    if (!user || !title || !description || !category || !price || !userTo) {
+
+    const categoryTitle = category;
+    const categoryDoc = await Category.findOne({ title: categoryTitle });
+    if (!categoryDoc) {
+      res.status(400).json({ message: "Category not found." });
+      return;
+    }
+    if (!title || !description || !category || !price) {
       res.status(400).json({ message: "Missing required fields." });
       return;
     }
+    const product = await createProduct({
+      user: userId!,
+      title,
+      description,
+      image: imagePath,
+      category: categoryDoc._id as string,
+      commission,
+      price,
+      height,
+      lengthPic,
+      width,
+      mediumused,
+      weight,
+      isVerify,
+      isSoldout,
+      soldPrice,
+    });
+    console.log("Product list----", product);
     res
       .status(200)
       .json({ message: "Product has been created successfully", product });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -137,9 +144,10 @@ export const getUpdateProduct = async (req: AuthRequest, res: Response) => {
       res.status(400).json({ message: "Missing request body" });
       return;
     }
+
     const { id } = req.params;
     const file = req.file;
-    const imagePath = file ? file.path : "";
+    const imagePath = file ? `/uploads/${file.filename}` : ""; // Adjust the image path format
     const {
       user,
       title,
@@ -157,10 +165,11 @@ export const getUpdateProduct = async (req: AuthRequest, res: Response) => {
       soldPrice,
       userTo,
     } = req.body;
+
     if (!user || !title || !description || !category || !price || !userTo) {
       // Clean up uploaded image if request is invalid
       if (imagePath) {
-        fs.unlink(imagePath, (err) => {
+        fs.unlink(path.resolve(__dirname, "..", imagePath), (err) => {
           if (err)
             console.error("Failed to delete uploaded image:", err.message);
         });
@@ -168,11 +177,13 @@ export const getUpdateProduct = async (req: AuthRequest, res: Response) => {
       res.status(400).json({ message: "Missing required fields." });
       return;
     }
+
     const product = await findProductById(id);
 
     if (!product) {
       res.status(400).json({ message: "product not found" });
     }
+
     const productUserId =
       product &&
       typeof product.user === "object" &&
@@ -185,11 +196,6 @@ export const getUpdateProduct = async (req: AuthRequest, res: Response) => {
       res.status(403).json({
         message: "You are not authorized to update this product",
       });
-      if (product) {
-        console.log("Product User ID:", product.user.toString());
-      } else {
-        console.log("Product is null");
-      }
       return;
     }
 
@@ -255,23 +261,75 @@ export const getVerifyAndAddCommissionByAdmin = async (
   try {
     const { commission } = req.body;
     const { id } = req.params;
+
+    if (commission === undefined || commission < 0) {
+      res
+        .status(400)
+        .json({ message: "Commission must be a non-negative number." });
+    }
+
     const product = await findProductById(id);
+
     if (!product) {
       res.status(404).json({ message: "Product not found" });
+      return;
     }
-    if (product) {
-      product.isVerify = true;
+
+    if (product.isVerify) {
+      res.status(400).json({ message: "Product is already verified" });
+      return;
     }
-    if (product) {
-      product.commission = commission;
-    }
-    await product?.save();
+    product.isVerify = true;
+    product.commission = commission;
+
+    // 4. Save product
+    await product.save();
+
     res.status(200).json({
-      message: "Product has been updated successfully",
+      message: "Product has been verified and commission added successfully",
       product,
     });
   } catch (err) {
-    console.log(err);
+    console.error("Error verifying product and adding commission:", err);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const assignBuyerToProduct = async (req: Request, res: Response) => {
+  const { productId, buyerId } = req.body;
+
+  const updatedProduct = await Product.findByIdAndUpdate(
+    productId,
+    { userTo: buyerId, isSoldout: true },
+    { new: true }
+  );
+
+  res.status(200).json({ message: "Buyer assigned", product: updatedProduct });
+};
+
+export const getProductsByCreatorRole = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const role = req.params.role; // expected to be 'admin' or 'seller'
+    if (!["admin", "seller"].includes(role)) {
+      res.status(400).json({ message: "Invalid role specified" });
+      return;
+    }
+
+    const products = await Product.find()
+      .populate("user")
+      .populate("userTo")
+      .sort("-createdAt");
+
+    const filtered = products.filter((p: any) => p.user?.role === role);
+
+    res.status(200).json({ products: filtered });
+    return;
+  } catch (error) {
+    console.error("Error fetching products by role:", error);
+    res.status(500).json({ message: "Server error" });
+    return;
   }
 };
