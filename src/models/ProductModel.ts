@@ -45,6 +45,11 @@ const productModel = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    status: {
+      type: String,
+      enum: ["pending", "delivered"],
+      default: "pending",
+    },
   },
   { timestamps: true }
 );
@@ -68,6 +73,7 @@ type ProductInput = {
   isSoldout?: boolean;
   soldPrice?: number;
   userTo?: string;
+  status?: string;
 };
 
 export const findProduct = async () => {

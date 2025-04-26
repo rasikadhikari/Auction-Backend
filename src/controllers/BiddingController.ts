@@ -68,9 +68,9 @@ export const getPlaceBid = async (req: AuthRequest, res: Response) => {
 
     if (existingUserBid) {
       if (price <= existingUserBid.price) {
-        res
-          .status(400)
-          .json({ message: "Your bid must be higher than your previous bid" });
+        res.status(400).json({
+          message: "Your bid must be higher than your previous bid",
+        });
         return;
       }
 
@@ -81,20 +81,30 @@ export const getPlaceBid = async (req: AuthRequest, res: Response) => {
         message: "Your bid has been updated successfully",
         bid: existingUserBid,
       });
+      return; // important to return after updating
     }
 
-    // Check if bid is higher than current highest bid
+    // Check if there is any bid already
     const highestBid = await Bidding.findOne({ product: productId })
-      .sort({
-        price: -1,
-      })
+      .sort({ price: -1 })
       .populate("user");
 
-    if (highestBid && price <= highestBid.price) {
-      res.status(400).json({
-        message: "Your bid must be higher than the current highest bid",
-      });
-      return;
+    if (highestBid) {
+      // There are existing bids
+      if (price <= highestBid.price) {
+        res.status(400).json({
+          message: "Your bid must be higher than the current highest bid",
+        });
+        return;
+      }
+    } else {
+      // No existing bids
+      if (price < product.price) {
+        res.status(400).json({
+          message: `Your starting bid must be at least equal to or higher than the product's price (${product.price})`,
+        });
+        return;
+      }
     }
 
     // Place new bid
@@ -240,7 +250,10 @@ export const getSoldBids = async (req: AuthRequest, res: Response) => {
       .sort({ updatedAt: -1 });
 
     if (!soldProducts || soldProducts.length === 0) {
-      res.status(404).json({ message: "No sold bids found for this seller" });
+      res.status(404).json({
+        message:
+          "No sold bids found for this seller.Add product and See here !!!",
+      });
     }
 
     const soldBids = soldProducts.map((product) => ({
@@ -259,6 +272,70 @@ export const getSoldBids = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching seller's sold bids:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const getBuyerWinningBids = async (req: AuthRequest, res: Response) => {
+  try {
+    const buyerId = req.user?.id;
+
+    if (!buyerId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const winningProducts = await Product.find({
+      userTo: buyerId,
+      isSoldout: true,
+    })
+      .populate("user", "name email")
+      .sort({ updatedAt: -1 });
+
+    if (!winningProducts || winningProducts.length === 0) {
+      res.status(404).json({ message: "No winning bids found" });
+      return;
+    }
+
+    const winningBids = winningProducts.map((product) => ({
+      id: product._id,
+      title: product.title,
+      commission: product.commission,
+      price: product.price,
+      bidAmount: product.soldPrice,
+      image: product.image,
+      status: product.status,
+    }));
+
+    res
+      .status(200)
+      .json({ message: "Winning bids fetched successfully", winningBids });
+  } catch (error) {
+    console.error("Error fetching buyer's winning bids:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getBidCountByProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      res.status(400).json({ message: "Invalid product ID" });
+      return;
+    }
+
+    const bidCount = await Bidding.countDocuments({ product: productId });
+
+    res.status(200).json({
+      message: "Bid count fetched successfully",
+      bidCount,
+    });
+  } catch (error) {
+    console.error("Error fetching bid count:", error);
     res.status(500).json({
       message: "Internal server error",
       error: error instanceof Error ? error.message : "Unknown error",
