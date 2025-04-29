@@ -77,10 +77,16 @@ type ProductInput = {
 };
 
 export const findProduct = async () => {
-  return await Product.find().populate("user").populate("userTo");
+  return await Product.find()
+    .populate("user")
+    .populate("userTo")
+    .populate("category", "title");
 };
 export const findProductById = async (id: string) => {
-  return await Product.findById(id).populate("user").populate("userTo");
+  return await Product.findById(id)
+    .populate("user")
+    .populate("userTo")
+    .populate("category", "title");
 };
 export const createProduct = async (data: ProductInput) => {
   return await Product.create(data);

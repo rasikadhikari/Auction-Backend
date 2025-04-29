@@ -1,3 +1,4 @@
+import { populate } from "dotenv";
 import mongoose, { Schema, Types, model } from "mongoose";
 import { Document } from "mongoose";
 export interface ICategory extends Document {

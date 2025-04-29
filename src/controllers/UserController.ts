@@ -94,6 +94,7 @@ export const loginUser = async (req: Request, res: Response) => {
         id: existingUser._id,
         role: existingUser.role,
         email: existingUser.email,
+        name: existingUser.name,
       },
       "secret",
       {
