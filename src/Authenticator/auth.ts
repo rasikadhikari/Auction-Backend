@@ -21,6 +21,7 @@ export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
       email: string;
       name: string;
     };
+    console.log("Decoded Token Payload:", verify);
     req.user = verify;
     next();
   } catch (err) {

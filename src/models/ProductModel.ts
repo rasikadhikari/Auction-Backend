@@ -50,6 +50,7 @@ const productModel = new Schema(
       enum: ["pending", "delivered"],
       default: "pending",
     },
+    isArchived: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -74,6 +75,7 @@ type ProductInput = {
   soldPrice?: number;
   userTo?: string;
   status?: string;
+  isArchived?: boolean;
 };
 
 export const findProduct = async () => {

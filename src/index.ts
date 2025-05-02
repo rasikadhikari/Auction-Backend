@@ -8,6 +8,7 @@ import user from "./routes/UserRoutes";
 import product from "./routes/ProductRoutes";
 import bid from "./routes/BiddingRoutes";
 import category from "./routes/CategoryRoutes";
+import wish from "./routes/WishlistRoutes";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/user", user);
 app.use("/product", product);
 app.use("/bid", bid);
 app.use("/category", category);
+app.use("/wishlist", wish);
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 mongoose

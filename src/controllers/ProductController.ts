@@ -106,34 +106,54 @@ export const getDeleteProduct = async (req: AuthRequest, res: Response) => {
     const product = await findProductById(id);
 
     if (!product) {
-      res.status(400).json({ message: "product not found" });
+      res.status(400).json({ message: "Product not found" });
+      return;
     }
 
-    if (!product || product.user.toString() !== req.user?.id) {
+    const isAdmin = req.user?.role?.toLowerCase() === "admin";
+    const isSeller = req.user?.role?.toLowerCase() === "seller";
+
+    const isOwner = product.user.toString() === req.user?.id;
+
+    if (!isAdmin && !isOwner && !isSeller) {
       res.status(403).json({
         message: "You are not authorized to delete this product",
       });
       return;
     }
 
-    // Delete image file if it exists
     if (product.image) {
-      const imagePath = path.resolve(product.image); // Resolves to absolute path
-      fs.unlink(imagePath, (err) => {
+      console.log(product.image);
+      const imagePath = path.resolve(
+        __dirname,
+        "..",
+        "uploads",
+        product.image.replace(/^\/+/, "")
+      );
+      console.log("Resolved Image Path:", imagePath);
+
+      fs.access(imagePath, fs.constants.F_OK, (err) => {
         if (err) {
-          console.error("Failed to delete image:", err.message);
+          console.error("Image does not exist at:", imagePath);
         } else {
-          console.log("Image file deleted:", imagePath);
+          fs.unlink(imagePath, (err) => {
+            if (err) {
+              console.error("Failed to delete image:", err.message);
+            } else {
+              console.log("Image deleted successfully:", imagePath);
+            }
+          });
         }
       });
     }
-    const deleteProducts = await deleteProduct(id);
+
+    const deletedProduct = await deleteProduct(id);
     res.status(200).json({
       message: "Product has been deleted successfully",
-      product: deleteProducts,
+      product: deletedProduct,
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -312,7 +332,7 @@ export const getProductsByCreatorRole = async (
   res: Response
 ) => {
   try {
-    const role = req.params.role; // expected to be 'admin' or 'seller'
+    const role = req.params.role;
     if (!["admin", "seller"].includes(role)) {
       res.status(400).json({ message: "Invalid role specified" });
       return;
