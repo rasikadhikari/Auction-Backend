@@ -11,6 +11,9 @@ import bcrypt from "bcrypt";
 import Jwt from "jsonwebtoken";
 import { validationResult } from "express-validator";
 import { AuthRequest } from "../Authenticator/auth";
+import Product from "../models/ProductModel";
+import Bidding from "../models/BiddingModel";
+import Wishlist from "../models/WishlistModel";
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -275,6 +278,44 @@ export const getBuyerProfile = async (req: AuthRequest, res: Response) => {
     });
   } catch (err) {
     console.error("Error fetching profile:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+export const getSellerDashboardData = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const { id } = req.user!;
+    const user = await findUserById(id);
+
+    if (!user || user.role !== "seller") {
+      res.status(403).json({ message: "Access denied" });
+      return;
+    }
+
+    const products = await Product.find({ seller: user._id });
+
+    const soldBids = await Bidding.find({
+      product: { $in: products.map((p) => p._id) },
+      isSold: true,
+    });
+
+    const favourites = await Wishlist.find({ user: user._id });
+
+    // 4. Return structured response
+    res.status(200).json({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      photo: user.photo,
+      balance: user.balance,
+      productCount: products.length,
+      soldCount: soldBids.length,
+      favourites: favourites ?? [],
+    });
+  } catch (err) {
+    console.error("Error fetching seller dashboard data:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };

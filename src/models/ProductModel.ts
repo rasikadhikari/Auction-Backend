@@ -106,6 +106,7 @@ export const findProductOfUser = async (userId: string) => {
   return await Product.find({ user: userId })
     .populate("user")
     .populate("userTo")
+    .populate("category", "title")
     .sort("-createdAt");
 };
 

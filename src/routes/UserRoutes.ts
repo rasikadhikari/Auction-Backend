@@ -5,6 +5,7 @@ import {
   getAllUser,
   getBuyerProfile,
   getDeleteUser,
+  getSellerDashboardData,
   getSellerProfile,
   getUserBalance,
   loginUser,
@@ -27,6 +28,12 @@ user.put(
   auth,
   upload.single("profilePic"),
   updateUserProfile
+);
+user.get(
+  "/seller/dashboard",
+  auth,
+  authorizeRoles("seller"),
+  getSellerDashboardData
 );
 
 user.get("/profile", auth, getAdminProfile);

@@ -14,16 +14,50 @@ import Category from "../models/CategoryModel";
 
 export const getAllProduct = async (req: Request, res: Response) => {
   try {
-    const product = await findProduct();
-    if (!product) {
-      res.status(404).json({ message: "product not found" });
+    const { category, isVerify, isSoldout, min, max, status } = req.query;
+
+    const filter: any = {};
+
+    if (category) {
+      filter.category = category;
     }
-    res
-      .status(200)
-      .json({ message: "Product has been fetch successfully", product });
+
+    if (isVerify !== undefined) {
+      filter.isVerify = isVerify === "true";
+    }
+
+    if (isSoldout !== undefined) {
+      filter.isSoldout = isSoldout === "true";
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    if (min || max) {
+      filter.price = {};
+      if (min) filter.price.$gte = Number(min);
+      if (max) filter.price.$lte = Number(max);
+    }
+
+    const products = await Product.find(filter)
+      .populate("user")
+      .populate("userTo")
+      .populate("category", "title");
+
+    if (!products || products.length === 0) {
+      res.status(404).json({ message: "No products found" });
+      return;
+    }
+
+    res.status(200).json({
+      message: "Products fetched successfully",
+      products,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error, message: "internal server error" });
+    res.status(500).json({ error, message: "Internal server error" });
+    return;
   }
 };
 
@@ -90,7 +124,7 @@ export const getCreateProduct = async (req: AuthRequest, res: Response) => {
       isSoldout,
       soldPrice,
     });
-    console.log("Product list----", product);
+
     res
       .status(200)
       .json({ message: "Product has been created successfully", product });
@@ -123,7 +157,6 @@ export const getDeleteProduct = async (req: AuthRequest, res: Response) => {
     }
 
     if (product.image) {
-      console.log(product.image);
       const imagePath = path.resolve(
         __dirname,
         "..",
@@ -167,27 +200,23 @@ export const getUpdateProduct = async (req: AuthRequest, res: Response) => {
 
     const { id } = req.params;
     const file = req.file;
-    const imagePath = file ? `/uploads/${file.filename}` : ""; // Adjust the image path format
+    const imagePath = file ? `/uploads/${file.filename}` : "";
+
     const {
       user,
       title,
       description,
       category,
-      commission,
       price,
       height,
       lengthPic,
       width,
       mediumused,
       weight,
-      isVerify,
-      isSoldout,
-      soldPrice,
-      userTo,
     } = req.body;
 
-    if (!user || !title || !description || !category || !price || !userTo) {
-      // Clean up uploaded image if request is invalid
+    // Validate required fields
+    if (!user || !title || !description || !category || !price) {
       if (imagePath) {
         fs.unlink(path.resolve(__dirname, "..", imagePath), (err) => {
           if (err)
@@ -198,44 +227,59 @@ export const getUpdateProduct = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const product = await findProductById(id);
-
-    if (!product) {
-      res.status(400).json({ message: "product not found" });
+    const categoryDoc = await Category.findOne({ title: category });
+    if (!categoryDoc) {
+      if (imagePath) {
+        fs.unlink(path.resolve(__dirname, "..", imagePath), (err) => {
+          if (err)
+            console.error("Failed to delete uploaded image:", err.message);
+        });
+      }
+      res.status(400).json({ message: "Invalid category provided." });
+      return;
     }
 
+    // Find the product
+    const product = await findProductById(id);
+    if (!product) {
+      res.status(400).json({ message: "Product not found" });
+      return;
+    }
+
+    // Check if current user is authorized
     const productUserId =
-      product &&
       typeof product.user === "object" &&
       product.user !== null &&
       "id" in product.user
         ? product.user.id
-        : product?.user?.toString();
+        : (product?.user as string)?.toString();
 
     if (productUserId !== req.user?.id) {
-      res.status(403).json({
-        message: "You are not authorized to update this product",
-      });
+      if (imagePath) {
+        fs.unlink(path.resolve(__dirname, "..", imagePath), (err) => {
+          if (err)
+            console.error("Failed to delete uploaded image:", err.message);
+        });
+      }
+      res
+        .status(403)
+        .json({ message: "You are not authorized to update this product" });
       return;
     }
 
+    // Update product
     const updatedProduct = await updateProduct(id, {
       user,
       title,
       description,
-      image: imagePath || (product ? product.image : ""),
-      category,
-      commission,
+      image: imagePath || product.image,
+      category: categoryDoc._id as string,
       price,
       height,
       lengthPic,
       width,
       mediumused,
       weight,
-      isVerify,
-      isSoldout,
-      soldPrice,
-      userTo,
     });
 
     res.status(200).json({
@@ -243,11 +287,10 @@ export const getUpdateProduct = async (req: AuthRequest, res: Response) => {
       product: updatedProduct,
     });
   } catch (err) {
-    console.log(err);
+    console.error("Update product error:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 export const getProductOfUser = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
